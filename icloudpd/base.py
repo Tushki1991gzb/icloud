@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Main script that uses Click to parse command-line arguments"""
 from __future__ import print_function
+
 import os
 import sys
 import time
@@ -13,6 +14,8 @@ import click
 
 from tqdm import tqdm
 from tzlocal import get_localzone
+
+from future.moves.urllib.parse import urlencode
 
 from pyicloud_ipd.exceptions import PyiCloudAPIResponseError
 
@@ -114,6 +117,11 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
     is_flag=True,
 )
 @click.option(
+    "--auto-delete-downloaded",
+    help='Auto delete downloaded photo. ',
+    is_flag=True,
+)
+@click.option(
     "--only-print-filenames",
     help="Only prints the filenames of all files that will be downloaded "
     "(not including files that are already downloaded.)"
@@ -211,6 +219,7 @@ def main(
         skip_live_photos,
         force_size,
         auto_delete,
+        auto_delete_downloaded,
         only_print_filenames,
         folder_structure,
         set_exif_datetime,
@@ -251,6 +260,8 @@ def main(
         or notification_email is not None
         or notification_script is not None
     )
+
+    # authentication -> store information to `icloud` variable
     try:
         icloud = authenticate(
             username,
@@ -277,6 +288,7 @@ def main(
     # calling `icloud.photos.all`.
     # After 6 or 7 runs within 1h Apple blocks the API for some time. In that
     # case exit.
+    # -> store in `photos` variable
     try:
         photos = icloud.photos.albums[album]
     except PyiCloudAPIResponseError as err:
@@ -436,8 +448,7 @@ def main(
                 return
             download_size = "original"
 
-        download_path = local_download_path(
-            photo, download_size, download_dir)
+        download_path = local_download_path(photo, download_size, download_dir)
 
         file_exists = os.path.isfile(download_path)
         if not file_exists and download_size == "original":
@@ -540,7 +551,37 @@ def main(
                         download.download_media(
                             icloud, photo, lp_download_path, lp_size
                         )
-
+    
+    photos_delete_list = []
+    def auto_delete_downloaded_photos(photo, end=False):
+        nonlocal photos_delete_list
+        if photo is not None:
+            mr = {'fields': {'isDeleted': {'value': 1}}}
+            mr['recordChangeTag'] = photo._asset_record['recordChangeTag']
+            mr['recordName'] = photo._asset_record['recordName']
+            mr['recordType'] = 'CPLAsset'
+            op = dict( operationType='update', record=mr)
+            
+            photos_delete_list.append(op)
+        if len(photos_delete_list) > 0 and (len(photos_delete_list) >= 20 or end is True):
+            post_data = json.dumps(dict(
+                atomic=True,
+                desiredKeys=['isDeleted'],
+                operations=photos_delete_list,
+                zoneID={'zoneName': 'PrimarySync'},
+            ))
+            url = '{}/records/modify?{}'.format(icloud.photos._service_endpoint, urlencode(icloud.photos.params))
+            headers = {'Content-type': 'text/plain'}
+            result = icloud.photos.session.post(
+                url,
+                data=post_data,
+                headers=headers,
+            )
+            statuscode = result.status_code
+            logger.info('Delete status code: ' + str(statuscode) + ', Delete len: ' + str(len(photos_delete_list)) + ' photos!')
+            # clear list after delete
+            photos_delete_list = []
+    
     consecutive_files_found = Counter(0)
 
     def should_break(counter):
@@ -557,6 +598,9 @@ def main(
                 break
             item = next(photos_iterator)
             download_photo(consecutive_files_found, item)
+            if auto_delete_downloaded:
+                auto_delete_downloaded_photos(item)
+                
         except StopIteration:
             break
 
@@ -564,6 +608,9 @@ def main(
         sys.exit(0)
 
     logger.info("All photos have been downloaded!")
+
+    if auto_delete_downloaded:
+        auto_delete_downloaded_photos(None, True)
 
     if auto_delete:
         autodelete_photos(icloud, folder_structure, directory)
