@@ -15,7 +15,7 @@ import click
 from tqdm import tqdm
 from tzlocal import get_localzone
 
-from pyicloud_ipd.exceptions import PyiCloudAPIResponseError
+from pyicloud.exceptions import PyiCloudAPIResponseException
 
 from icloudpd.logger import setup_logger
 from icloudpd.authentication import authenticate, TwoStepAuthRequiredError
@@ -50,6 +50,10 @@ CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
     help="Your iCloud password "
     "(default: use PyiCloud keyring or prompt for password)",
     metavar="<password>",
+)
+@click.option("--china-mainland",
+              help="The country/region setting of your Apple ID is China mainland(中国大陆)",
+              is_flag=True,
 )
 @click.option(
     "--cookie-directory",
@@ -208,6 +212,7 @@ def main(
         directory,
         username,
         password,
+        china_mainland,
         cookie_directory,
         size,
         live_photo_size,
@@ -271,6 +276,7 @@ def main(
             cookie_directory,
             raise_error_on_2sa,
             client_id=os.environ.get("CLIENT_ID"),
+            china_mainland=china_mainland,
         )
     except TwoStepAuthRequiredError:
         if notification_script is not None:
@@ -292,7 +298,7 @@ def main(
     # case exit.
     try:
         photos = icloud.photos.albums[album]
-    except PyiCloudAPIResponseError as err:
+    except PyiCloudAPIResponseException as err:
         # For later: come up with a nicer message to the user. For now take the
         # exception text
         print(err)
