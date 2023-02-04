@@ -391,7 +391,7 @@ def main(
             return
         try:
             created_date = photo.created.astimezone(get_localzone())
-        except (ValueError, OSError):
+        except (ValueError, OSError, OverflowError):
             logger.set_tqdm_description(
                 f"Could not convert photo created date to local timezone ({photo.created})",
                 logging.ERROR)
