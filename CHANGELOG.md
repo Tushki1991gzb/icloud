@@ -26,6 +26,7 @@
 - fix: logs when progress bar enabled
 - feature: `--dry-run` parameter to run icloudpd without changes to local files and iCloud
 - fix: pypi.org license and description
+- feature: offer to save user password if it is entered interactively
 
 ## 1.14.5 (2023-07-06)
 
