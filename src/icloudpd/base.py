@@ -19,7 +19,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from tzlocal import get_localzone
 from pyicloud_ipd import PyiCloudService
 
-from pyicloud_ipd.exceptions import PyiCloudAPIResponseError
+from pyicloud_ipd.exceptions import PyiCloudAPIResponseException
 from pyicloud_ipd.services.photos import PhotoAsset
 
 from icloudpd.authentication import authenticator, TwoStepAuthRequiredError
@@ -102,6 +102,8 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
     metavar="<library>",
     default="PrimarySync",
 )
+# TODO: this has been removed. Can it be patched back in, or is it no
+# longer supported?
 @click.option(
     "--list-libraries",
     help="Lists the available libraries",
@@ -136,13 +138,12 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
     + "(Does not download or delete any files.)",
     is_flag=True,
 )
-@click.option(
-    "--folder-structure",
-    help="Folder structure (default: {:%Y/%m/%d}). "
-    "If set to 'none' all photos will just be placed into the download directory",
-    metavar="<folder_structure>",
-    default="{:%Y/%m/%d}",
-)
+@click.option("--folder-structure",
+              help="Folder structure (default: {:%Y/%m/%d}). "
+              "If set to 'none' all photos will just be placed into the download directory",
+              metavar="<folder_structure>",
+              default="{:%Y/%m/%d}",
+              )
 @click.option(
     "--set-exif-datetime",
     help="Write the DateTimeOriginal exif tag from file creation date, " +
@@ -220,6 +221,7 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
     + ' Therefore, should not combine with --auto-delete option.',
     is_flag=True,
 )
+# TODO: currently not supported, and will need to be patched back in
 @click.option(
     "--domain",
     help="What iCloud root domain to use. Use 'cn' for mainland China (default: 'com')",
@@ -235,7 +237,8 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
               is_flag=True,
               default=False,
               )
-# a hacky way to get proper version because automatic detection does not work for some reason
+# a hacky way to get proper version because automatic detection does not
+# work for some reason
 @click.version_option(version="1.16.3")
 # pylint: disable-msg=too-many-arguments,too-many-statements
 # pylint: disable-msg=too-many-branches,too-many-locals
@@ -307,7 +310,8 @@ def main(
             print('--auto-delete and --delete-after-download are mutually exclusive')
             sys.exit(2)
 
-        if watch_with_interval and (list_albums or only_print_filenames):  # pragma: no cover
+        if watch_with_interval and (
+                list_albums or only_print_filenames):  # pragma: no cover
             print(
                 '--watch_with_interval is not compatible with --list_albums, --only_print_filenames'
             )
@@ -326,7 +330,9 @@ def main(
                     set_exif_datetime,
                     skip_live_photos,
                     live_photo_size,
-                    dry_run) if directory is not None else (lambda _s: lambda _c, _p: False),
+                    dry_run) if directory is not None else (
+                    lambda _s: lambda _c,
+                    _p: False),
                 directory,
                 username,
                 password,
@@ -355,9 +361,7 @@ def main(
                 domain,
                 logger,
                 watch_with_interval,
-                dry_run
-            )
-        )
+                dry_run))
 
 
 # pylint: disable-msg=too-many-arguments,too-many-statements
@@ -377,7 +381,8 @@ def download_builder(
         live_photo_size: str,
         dry_run: bool) -> Callable[[PyiCloudService], Callable[[Counter, PhotoAsset], bool]]:
     """factory for downloader"""
-    def state_(icloud: PyiCloudService) -> Callable[[Counter, PhotoAsset], bool]:
+    def state_(
+            icloud: PyiCloudService) -> Callable[[Counter, PhotoAsset], bool]:
         def download_photo_(counter: Counter, photo: PhotoAsset) -> bool:
             """internal function for actually downloading the photos"""
             filename = clean_filename(photo.filename)
@@ -428,8 +433,7 @@ def download_builder(
                 versions = photo.versions
             except KeyError as ex:
                 print(
-                    f"KeyError: {ex} attribute was not found in the photo fields."
-                )
+                    f"KeyError: {ex} attribute was not found in the photo fields.")
                 with open(file='icloudpd-photo-error.json', mode='w', encoding='utf8') as outfile:
                     # pylint: disable=protected-access
                     json.dump({
@@ -507,17 +511,14 @@ def download_builder(
                     )
 
                     download_result = download.download_media(
-                        logger, dry_run, icloud, photo, download_path, download_size
-                    )
+                        logger, dry_run, icloud, photo, download_path, download_size)
                     success = download_result
 
                     if download_result:
-                        if not dry_run and \
-                            set_exif_datetime and \
-                            clean_filename(photo.filename) \
-                                .lower() \
-                                .endswith((".jpg", ".jpeg")) and \
-                                not exif_datetime.get_photo_exif(logger, download_path):
+                        if not dry_run and set_exif_datetime and clean_filename(
+                                photo.filename) .lower() .endswith(
+                                (".jpg", ".jpeg")) and not exif_datetime.get_photo_exif(
+                                logger, download_path):
                             # %Y:%m:%d looks wrong, but it's the correct format
                             date_str = created_date.strftime(
                                 "%Y-%m-%d %H:%M:%S%z")
@@ -582,8 +583,7 @@ def download_builder(
                                 truncated_path
                             )
                             download_result = download.download_media(
-                                logger, dry_run, icloud, photo, lp_download_path, lp_size
-                            )
+                                logger, dry_run, icloud, photo, lp_download_path, lp_size)
                             success = download_result and success
                             if download_result:
                                 logger.info(
@@ -595,7 +595,10 @@ def download_builder(
     return state_
 
 
-def delete_photo(logger: logging.Logger, icloud: PyiCloudService, photo: PhotoAsset):
+def delete_photo(
+        logger: logging.Logger,
+        icloud: PyiCloudService,
+        photo: PhotoAsset):
     """Delete a photo from the iCloud account."""
     clean_filename_local = clean_filename(photo.filename)
     logger.debug(
@@ -626,7 +629,10 @@ def delete_photo(logger: logging.Logger, icloud: PyiCloudService, photo: PhotoAs
         "Deleted %s in iCloud", clean_filename_local)
 
 
-def delete_photo_dry_run(logger: logging.Logger, _icloud: PyiCloudService, photo: PhotoAsset):
+def delete_photo_dry_run(
+        logger: logging.Logger,
+        _icloud: PyiCloudService,
+        photo: PhotoAsset):
     """Dry run for deleting a photo from the iCloud"""
     logger.info(
         "[DRY RUN] Would delete %s in iCloud",
@@ -769,158 +775,148 @@ def core(
     # Access to the selected library. Defaults to the primary photos object.
     library_object = icloud.photos
 
-    if list_libraries:
-        libraries_dict = icloud.photos.libraries
-        library_names = libraries_dict.keys()
-        print(*library_names, sep="\n")
+    # TODO: selecting library not supported anymore! Need to adjust USAGE,
+    # docs, etc
 
-    else:
+    while True:
+        # Default album is "All Photos", so this is the same as
+        # calling `icloud.photos.all`.
+        # After 6 or 7 runs within 1h Apple blocks the API for some time. In that
+        # case exit.
+        try:
+            photos = library_object.all
+        except PyiCloudAPIResponseException as err:
+            # For later: come up with a nicer message to the user. For now take the
+            # exception text
+            logger.error("error?? %s", err)
+            return 1
+
+        if list_albums:
+            print("Albums:")
+            albums_dict = library_object.albums
+            albums = albums_dict.values()  # pragma: no cover
+            album_titles = [str(a) for a in albums]
+            print(*album_titles, sep="\n")
+            return 0
+        # casting is okay since we checked for list_albums and directory compatibily upstream
+        # would be better to have that in types though
+        directory = os.path.normpath(cast(str, directory))
+
+        videos_phrase = "" if skip_videos else " and videos"
+        logger.debug(
+            "Looking up all photos%s from album %s...",
+            videos_phrase,
+            album
+        )
+
+        session_exception_handler = session_error_handle_builder(
+            logger, icloud)
+        internal_error_handler = internal_error_handle_builder(logger)
+
+        error_handler = compose_handlers(
+            [session_exception_handler, internal_error_handler])
+
+        photos.exception_handler = error_handler
+
+        photos_count: Optional[int] = len(photos)
+
+        # Optional: Only download the x most recent photos.
+        if recent is not None:
+            photos_count = recent
+            photos = itertools.islice(photos, recent)
+
+        if until_found is not None:
+            photos_count = None
+            # ensure photos iterator doesn't have a known length
+            photos = (p for p in photos)
+
+        # Skip the one-line progress bar if we're only printing the filenames,
+        # or if the progress bar is explicitly disabled,
+        # or if this is not a terminal (e.g. cron or piping output to file)
+        skip_bar = not os.environ.get("FORCE_TQDM") and (
+            only_print_filenames or no_progress_bar or not sys.stdout.isatty())
+        if skip_bar:
+            photos_enumerator = photos
+            # logger.set_tqdm(None)
+        else:
+            photos_enumerator = tqdm(
+                iterable=photos,
+                total=photos_count,
+                leave=False,
+                dynamic_ncols=True,
+                ascii=True)
+            # logger.set_tqdm(photos_enumerator)
+
+        if photos_count is not None:
+            plural_suffix = "" if photos_count == 1 else "s"
+            video_suffix = ""
+            photos_count_str = "the first" if photos_count == 1 else photos_count
+
+            if not skip_videos:
+                video_suffix = " or video" if photos_count == 1 else " and videos"
+        else:
+            photos_count_str = "???"
+            plural_suffix = "s"
+            video_suffix = " and videos" if not skip_videos else ""
+        logger.info(
+            ("Downloading %s %s" +
+             " photo%s%s to %s ..."),
+            photos_count_str,
+            size,
+            plural_suffix,
+            video_suffix,
+            directory
+        )
+
+        consecutive_files_found = Counter(0)
+
+        def should_break(counter: Counter) -> bool:
+            """Exit if until_found condition is reached"""
+            return until_found is not None and counter.value() >= until_found
+
+        photos_iterator = iter(photos_enumerator)
         while True:
-            # Default album is "All Photos", so this is the same as
-            # calling `icloud.photos.all`.
-            # After 6 or 7 runs within 1h Apple blocks the API for some time. In that
-            # case exit.
             try:
-                if library:
-                    try:
-                        library_object = icloud.photos.libraries[library]
-                    except KeyError:
-                        logger.error("Unknown library: %s", library)
-                        return 1
-                photos = library_object.albums[album]
-            except PyiCloudAPIResponseError as err:
-                # For later: come up with a nicer message to the user. For now take the
-                # exception text
-                logger.error("error?? %s", err)
-                return 1
-
-            if list_albums:
-                print("Albums:")
-                albums_dict = library_object.albums
-                albums = albums_dict.values()  # pragma: no cover
-                album_titles = [str(a) for a in albums]
-                print(*album_titles, sep="\n")
-                return 0
-            # casting is okay since we checked for list_albums and directory compatibily upstream
-            # would be better to have that in types though
-            directory = os.path.normpath(cast(str, directory))
-
-            videos_phrase = "" if skip_videos else " and videos"
-            logger.debug(
-                "Looking up all photos%s from album %s...",
-                videos_phrase,
-                album
-            )
-
-            session_exception_handler = session_error_handle_builder(
-                logger, icloud)
-            internal_error_handler = internal_error_handle_builder(logger)
-
-            error_handler = compose_handlers([session_exception_handler, internal_error_handler
-                                            ])
-
-            photos.exception_handler = error_handler
-
-            photos_count: Optional[int] = len(photos)
-
-            # Optional: Only download the x most recent photos.
-            if recent is not None:
-                photos_count = recent
-                photos = itertools.islice(photos, recent)
-
-            if until_found is not None:
-                photos_count = None
-                # ensure photos iterator doesn't have a known length
-                photos = (p for p in photos)
-
-            # Skip the one-line progress bar if we're only printing the filenames,
-            # or if the progress bar is explicitly disabled,
-            # or if this is not a terminal (e.g. cron or piping output to file)
-            skip_bar = not os.environ.get("FORCE_TQDM") and (
-                only_print_filenames or no_progress_bar or not sys.stdout.isatty())
-            if skip_bar:
-                photos_enumerator = photos
-                # logger.set_tqdm(None)
-            else:
-                photos_enumerator = tqdm(
-                    iterable=photos,
-                    total=photos_count,
-                    leave=False,
-                    dynamic_ncols=True,
-                    ascii=True)
-                # logger.set_tqdm(photos_enumerator)
-
-            if photos_count is not None:
-                plural_suffix = "" if photos_count == 1 else "s"
-                video_suffix = ""
-                photos_count_str = "the first" if photos_count == 1 else photos_count
-
-                if not skip_videos:
-                    video_suffix = " or video" if photos_count == 1 else " and videos"
-            else:
-                photos_count_str = "???"
-                plural_suffix = "s"
-                video_suffix = " and videos" if not skip_videos else ""
-            logger.info(
-                ("Downloading %s %s" +
-                " photo%s%s to %s ..."),
-                photos_count_str,
-                size,
-                plural_suffix,
-                video_suffix,
-                directory
-            )
-
-            consecutive_files_found = Counter(0)
-
-            def should_break(counter: Counter) -> bool:
-                """Exit if until_found condition is reached"""
-                return until_found is not None and counter.value() >= until_found
-
-            photos_iterator = iter(photos_enumerator)
-            while True:
-                try:
-                    if should_break(consecutive_files_found):
-                        logger.info(
-                            "Found %s consecutive previously downloaded photos. Exiting",
-                            until_found
-                        )
-                        break
-                    item = next(photos_iterator)
-                    if download_photo(
-                            consecutive_files_found,
-                            item) and delete_after_download:
-
-                        def delete_cmd():
-                            delete_local = delete_photo_dry_run if dry_run else delete_photo
-                            delete_local(logger, icloud, item)
-
-                        retrier(delete_cmd, error_handler)
-
-                except StopIteration:
+                if should_break(consecutive_files_found):
+                    logger.info(
+                        "Found %s consecutive previously downloaded photos. Exiting",
+                        until_found)
                     break
+                item = next(photos_iterator)
+                if download_photo(
+                        consecutive_files_found,
+                        item) and delete_after_download:
 
-            if only_print_filenames:
-                return 0
+                    def delete_cmd():
+                        delete_local = delete_photo_dry_run if dry_run else delete_photo
+                        delete_local(logger, icloud, item)
 
-            logger.info("All photos have been downloaded")
+                    retrier(delete_cmd, error_handler)
 
-            if auto_delete:
-                autodelete_photos(logger, dry_run, library_object,
-                                folder_structure, directory)
+            except StopIteration:
+                break
 
-            if watch_interval:  # pragma: no cover
-                logger.info(f"Waiting for {watch_interval} sec...")
-                interval = range(1, watch_interval)
-                for _ in interval if skip_bar else tqdm(
-                    interval,
-                    desc="Waiting...",
-                    ascii=True,
-                    leave=False,
-                    dynamic_ncols=True
-                ):
-                    time.sleep(1)
-            else:
-                break  # pragma: no cover
+        if only_print_filenames:
+            return 0
+
+        logger.info("All photos have been downloaded")
+
+        if auto_delete:
+            autodelete_photos(logger, dry_run, library_object,
+                              folder_structure, directory)
+
+        if watch_interval:  # pragma: no cover
+            logger.info(f"Waiting for {watch_interval} sec...")
+            interval = range(1, watch_interval)
+            for _ in interval if skip_bar else tqdm(
+                interval,
+                desc="Waiting...",
+                ascii=True,
+                leave=False,
+                dynamic_ncols=True
+            ):
+                time.sleep(1)
+        else:
+            break  # pragma: no cover
 
     return 0
